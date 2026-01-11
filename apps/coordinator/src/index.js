@@ -85,7 +85,9 @@ function buildCommandSchema() {
           "SET_VOLUME",
           "MOVE_AUDIO",
           "SELECT_BLUETOOTH_DEVICE",
-          "LIST_TARGETS"
+          "LIST_TARGETS",
+          "MUTE",
+          "UNMUTE"
         ]
       },
       sessionId: { type: "string" },
@@ -97,7 +99,8 @@ function buildCommandSchema() {
       bluetoothDeviceId: { type: "string" },
       seekSeconds: { type: "number" },
       volumeLevel: { type: "number", minimum: 0, maximum: 100 },
-      volumeDelta: { type: "number", minimum: -100, maximum: 100 }
+      volumeDelta: { type: "number", minimum: -100, maximum: 100 },
+      mute: { type: "boolean" }
     }
   };
 }
@@ -368,6 +371,28 @@ async function start() {
 
       return { accepted: true, audioZoneId: command.audioZoneId, volumeLevel: resolvedVolumeLevel };
     }
+
+    if (command.action === "MUTE" || command.action === "UNMUTE") {
+      if (!command.audioZoneId) {
+        return reply.code(400).send({ error: "audioZoneId is required for MUTE/UNMUTE" });
+      }
+
+      const zone = inventoryIndex.zoneById.get(command.audioZoneId);
+      if (!zone) {
+        return reply.code(400).send({ error: `Unknown audioZoneId: ${command.audioZoneId}` });
+      }
+
+      const { request } = await import("undici");
+
+      await request(`${zone.endpoint}/set-mute`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ muted: command.action === "MUTE" })
+      });
+
+      return { accepted: true, audioZoneId: command.audioZoneId, muted: command.action === "MUTE" };
+    }
+
 
     return reply.code(400).send({ error: "Unsupported command action" });
   });
