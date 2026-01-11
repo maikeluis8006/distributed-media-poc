@@ -7,6 +7,13 @@
       "playerType": "generic_http"
     }
   ],
-  "audioZones": [],
+  "audioZones": [
+    {
+      "audioZoneId": "zone_living_room",
+      "displayName": "Sala",
+      "outputs": ["wired", "bluetooth"],
+      "endpoint": "http://localhost:8091"
+    }
+  ],
   "bluetoothDevices": []
 }
