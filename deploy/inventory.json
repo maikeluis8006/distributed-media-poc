@@ -1,0 +1,12 @@
+{
+  "tvs": [
+    {
+      "tvId": "tv_living_room",
+      "displayName": "TV Sala",
+      "endpoint": "http://localhost:8090",
+      "playerType": "generic_http"
+    }
+  ],
+  "audioZones": [],
+  "bluetoothDevices": []
+}
