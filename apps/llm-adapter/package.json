@@ -9,6 +9,7 @@
     "dev": "node src/index.js"
   },
   "dependencies": {
+    "dotenv": "^17.2.3",
     "fastify": "^4.28.1",
     "undici": "^6.19.8"
   }

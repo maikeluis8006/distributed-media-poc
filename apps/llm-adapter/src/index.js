@@ -1,3 +1,5 @@
+require("dotenv").config();
+
 const Fastify = require("fastify");
 const { request } = require("undici");
 
@@ -78,21 +80,33 @@ async function parseWithTabbyApi(utterance, context) {
     return buildParseResult(null, "TabbyAPI no está configurado. Define TABBY_BASE_URL y TABBY_MODEL.");
   }
 
-  const systemInstruction = [
-    "You are a command parser for a distributed media controller.",
-    "Return ONLY valid JSON, no markdown, no extra text.",
-    "Schema:",
+    const systemInstruction = [
+    "You are a strict JSON command generator for a distributed media controller.",
+    "Return ONLY valid JSON. No markdown. No explanations. No extra text.",
+    "",
+    "Output schema:",
     "{",
-    '  "command": { ... } | null,',
+    '  "command": object | null,',
     '  "clarificationQuestion": string | null',
     "}",
-    "Valid command actions:",
+    "",
+    "Important rules:",
+    "1) The command object MUST contain only these allowed properties (no others):",
+    "   action, sessionId, contentRef, targetTvId, audioRoute, audioZoneId, audioOutput, bluetoothDeviceId, seekSeconds, volumeLevel, volumeDelta",
+    "2) Use contentRef (NOT media, NOT content, NOT title).",
+    "3) If a required field is missing, set command to null and set clarificationQuestion.",
+    "",
+    "Valid action values:",
     "PLAY, STOP, PAUSE, RESUME, SEEK, SET_VOLUME, MOVE_AUDIO, SELECT_BLUETOOTH_DEVICE, LIST_TARGETS",
-    "Use these canonical ids unless the user specifies different ones:",
-    'targetTvId: "tv_living_room"',
-    'audioZoneId: "zone_living_room"',
-    "If sessionId is required and missing, set command.sessionId = null and set clarificationQuestion."
-  ].join("\n");
+    "",
+    "Canonical ids to use if the user refers to them by name:",
+    'TV Sala -> targetTvId: "tv_living_room"',
+    'Sala (audio zone) -> audioZoneId: "zone_living_room"',
+    "",
+    "PLAY requires: action, targetTvId, contentRef.",
+    "LIST_TARGETS requires: action only."
+    ].join("\n");
+
 
   const userText = [
     `utterance: ${String(utterance || "")}`,

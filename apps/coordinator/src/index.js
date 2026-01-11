@@ -1,3 +1,5 @@
+require("dotenv").config();
+
 const path = require("path");
 const fs = require("fs");
 const Fastify = require("fastify");
@@ -94,7 +96,8 @@ function buildCommandSchema() {
       audioOutput: { type: "string", enum: ["wired", "bluetooth", "both"] },
       bluetoothDeviceId: { type: "string" },
       seekSeconds: { type: "number" },
-      volumeLevel: { type: "number", minimum: 0, maximum: 100 }
+      volumeLevel: { type: "number", minimum: 0, maximum: 100 },
+      volumeDelta: { type: "number", minimum: -100, maximum: 100 }
     }
   };
 }
@@ -311,24 +314,74 @@ async function start() {
     }
 
     if (command.action === "SET_VOLUME") {
-      if (!command.audioZoneId || typeof command.volumeLevel !== "number") {
-        return reply.code(400).send({ error: "audioZoneId and volumeLevel are required for SET_VOLUME" });
+      const { request } = await import("undici");
+
+      const hasAbsoluteVolume = typeof command.volumeLevel === "number";
+      const hasRelativeVolume = typeof command.volumeDelta === "number";
+
+      if (!hasAbsoluteVolume && !hasRelativeVolume) {
+        return reply.code(400).send({ error: "volumeLevel or volumeDelta is required for SET_VOLUME" });
       }
 
-      const zone = inventoryIndex.zoneById.get(command.audioZoneId);
+      let resolvedAudioZoneId = command.audioZoneId || null;
 
-      const { request } = await import("undici");
+      if (!resolvedAudioZoneId && command.targetTvId) {
+        if (command.targetTvId === "tv_living_room") {
+          resolvedAudioZoneId = "zone_living_room";
+        }
+      }
+
+      if (!resolvedAudioZoneId) {
+        return reply.code(400).send({ error: "audioZoneId or targetTvId is required for SET_VOLUME" });
+      }
+
+      const zone = inventoryIndex.zoneById.get(resolvedAudioZoneId);
+      if (!zone) {
+        return reply.code(400).send({ error: `Unknown audioZoneId: ${resolvedAudioZoneId}` });
+      }
+
+      let resolvedVolumeLevel = command.volumeLevel;
+
+      if (!hasAbsoluteVolume && hasRelativeVolume) {
+        const stateResponse = await request(`${zone.endpoint}/state`, { method: "GET" });
+        const stateText = await stateResponse.body.text();
+
+        let stateJson;
+        try {
+          stateJson = JSON.parse(stateText);
+        } catch {
+          return reply.code(502).send({ error: "audio-zone returned invalid JSON for /state" });
+        }
+
+        const currentVolumeLevel = Number(stateJson.volumeLevel);
+        if (!Number.isFinite(currentVolumeLevel)) {
+          return reply.code(502).send({ error: "audio-zone returned invalid volumeLevel in /state" });
+        }
+
+        resolvedVolumeLevel = currentVolumeLevel + command.volumeDelta;
+      }
+
+      if (!Number.isFinite(resolvedVolumeLevel)) {
+        return reply.code(400).send({ error: "Resolved volume level is not a valid number" });
+      }
+
+      if (resolvedVolumeLevel < 0) resolvedVolumeLevel = 0;
+      if (resolvedVolumeLevel > 100) resolvedVolumeLevel = 100;
 
       await request(`${zone.endpoint}/set-volume`, {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          volumeLevel: command.volumeLevel
-        })
+        body: JSON.stringify({ volumeLevel: resolvedVolumeLevel })
       });
 
-      return { accepted: true };
+      return {
+        accepted: true,
+        target: { audioZoneId: resolvedAudioZoneId },
+        volume: { volumeLevel: resolvedVolumeLevel }
+      };
     }
+
+
 
     return reply.code(400).send({ error: "Unsupported command action" });
   });
