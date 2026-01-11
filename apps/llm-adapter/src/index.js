@@ -71,6 +71,14 @@ function parseRuleBased(utteranceText) {
   return buildParseResult(null, "No entendí el comando. ¿Quieres reproducir o cambiar volumen?");
 }
 
+function removeNullAndUndefinedProperties(objectValue) {
+  return Object.fromEntries(
+    Object.entries(objectValue).filter(
+      ([, value]) => value !== null && value !== undefined
+    )
+  );
+}
+
 async function parseWithTabbyApi(utterance, context) {
   const tabbyBaseUrl = getEnvString("TABBY_BASE_URL", "");
   const tabbyApiKey = getEnvString("TABBY_API_KEY", "");
@@ -149,7 +157,12 @@ async function parseWithTabbyApi(utterance, context) {
 
   try {
     const parsedContent = JSON.parse(content);
-    return buildParseResult(parsedContent.command || null, parsedContent.clarificationQuestion || null);
+
+    const sanitizedCommand = parsedContent.command
+      ? removeNullAndUndefinedProperties(parsedContent.command)
+      : null;
+
+    return buildParseResult(sanitizedCommand, parsedContent.clarificationQuestion || null);
   } catch {
     return buildParseResult(null, "TabbyAPI devolvió contenido que no es JSON válido.");
   }
