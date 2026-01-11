@@ -203,7 +203,25 @@ async function start() {
     }
 
     if (command.action === "PLAY") {
+      if (!command.targetTvId || !command.contentRef) {
+        return reply.code(400).send({ error: "targetTvId and contentRef are required for PLAY" });
+      }
+
+      const tv = inventoryIndex.tvById.get(command.targetTvId);
+
       const session = createSession(command);
+
+      const { request } = await import("undici");
+
+      await request(`${tv.endpoint}/play`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          sessionId: session.sessionId,
+          contentRef: session.contentRef
+        })
+      });
+
       return { accepted: true, session };
     }
 
@@ -238,18 +256,32 @@ async function start() {
     }
 
     if (command.action === "MOVE_AUDIO") {
-      const resolvedSessionId = command.sessionId;
-      if (!resolvedSessionId) return reply.code(400).send({ error: "sessionId is required for MOVE_AUDIO" });
+      if (!command.sessionId || !command.audioZoneId) {
+        return reply.code(400).send({ error: "sessionId and audioZoneId are required for MOVE_AUDIO" });
+      }
 
-      if (!command.audioZoneId) return reply.code(400).send({ error: "audioZoneId is required for MOVE_AUDIO" });
+      const zone = inventoryIndex.zoneById.get(command.audioZoneId);
 
-      const updatedSession = updateSession(resolvedSessionId, {
-        audioRoute: "zone",
-        audioZoneId: command.audioZoneId,
-        audioOutput: command.audioOutput || null
+      const { request } = await import("undici");
+
+      await request(`${zone.endpoint}/attach-session`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          sessionId: command.sessionId,
+          audioOutput: command.audioOutput || "wired"
+        })
       });
 
-      if (!updatedSession) return reply.code(404).send({ error: "Session not found" });
+      const updatedSession = updateSession(command.sessionId, {
+        audioRoute: "zone",
+        audioZoneId: command.audioZoneId,
+        audioOutput: command.audioOutput || "wired"
+      });
+
+      if (!updatedSession) {
+        return reply.code(404).send({ error: "Session not found" });
+      }
 
       return { accepted: true, session: updatedSession };
     }
@@ -279,10 +311,23 @@ async function start() {
     }
 
     if (command.action === "SET_VOLUME") {
-      if (!command.audioZoneId) return reply.code(400).send({ error: "audioZoneId is required for SET_VOLUME" });
-      if (typeof command.volumeLevel !== "number") return reply.code(400).send({ error: "volumeLevel is required for SET_VOLUME" });
+      if (!command.audioZoneId || typeof command.volumeLevel !== "number") {
+        return reply.code(400).send({ error: "audioZoneId and volumeLevel are required for SET_VOLUME" });
+      }
 
-      return { accepted: true, volume: { audioZoneId: command.audioZoneId, volumeLevel: command.volumeLevel } };
+      const zone = inventoryIndex.zoneById.get(command.audioZoneId);
+
+      const { request } = await import("undici");
+
+      await request(`${zone.endpoint}/set-volume`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          volumeLevel: command.volumeLevel
+        })
+      });
+
+      return { accepted: true };
     }
 
     return reply.code(400).send({ error: "Unsupported command action" });

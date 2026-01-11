@@ -1,5 +1,5 @@
 {
-  "name": "@distributed-media-poc/coordinator",
+  "name": "@distributed-media-poc/llm-adapter",
   "version": "0.1.0",
   "private": true,
   "type": "commonjs",
@@ -9,8 +9,6 @@
     "dev": "node src/index.js"
   },
   "dependencies": {
-    "ajv": "^8.17.1",
-    "fastify": "^4.28.1",
-    "undici": "^6.19.8"
+    "fastify": "^4.28.1"
   }
 }
