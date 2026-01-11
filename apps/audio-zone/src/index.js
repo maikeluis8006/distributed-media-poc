@@ -6,6 +6,7 @@ const inMemoryState = {
   activeSessionId: null,
   audioOutput: "wired",
   volumeLevel: 50,
+  muted: false,
   bluetoothDeviceId: null
 };
 
@@ -28,6 +29,16 @@ app.post("/attach-session", async (request) => {
   inMemoryState.audioOutput = audioOutput || "wired";
   inMemoryState.bluetoothDeviceId = null;
 
+  return { accepted: true, state: { ...inMemoryState } };
+});
+
+app.post("/set-mute", async (request) => {
+  const { muted } = request.body || {};
+  if (typeof muted !== "boolean") {
+    return { accepted: false, error: "muted must be a boolean" };
+  }
+
+  inMemoryState.muted = muted;
   return { accepted: true, state: { ...inMemoryState } };
 });
 
