@@ -314,7 +314,9 @@ async function start() {
     }
 
     if (command.action === "SET_VOLUME") {
-      const { request } = await import("undici");
+      if (!command.audioZoneId) {
+        return reply.code(400).send({ error: "audioZoneId is required for SET_VOLUME" });
+      }
 
       const hasAbsoluteVolume = typeof command.volumeLevel === "number";
       const hasRelativeVolume = typeof command.volumeDelta === "number";
@@ -323,22 +325,12 @@ async function start() {
         return reply.code(400).send({ error: "volumeLevel or volumeDelta is required for SET_VOLUME" });
       }
 
-      let resolvedAudioZoneId = command.audioZoneId || null;
-
-      if (!resolvedAudioZoneId && command.targetTvId) {
-        if (command.targetTvId === "tv_living_room") {
-          resolvedAudioZoneId = "zone_living_room";
-        }
-      }
-
-      if (!resolvedAudioZoneId) {
-        return reply.code(400).send({ error: "audioZoneId or targetTvId is required for SET_VOLUME" });
-      }
-
-      const zone = inventoryIndex.zoneById.get(resolvedAudioZoneId);
+      const zone = inventoryIndex.zoneById.get(command.audioZoneId);
       if (!zone) {
-        return reply.code(400).send({ error: `Unknown audioZoneId: ${resolvedAudioZoneId}` });
+        return reply.code(400).send({ error: `Unknown audioZoneId: ${command.audioZoneId}` });
       }
+
+      const { request } = await import("undici");
 
       let resolvedVolumeLevel = command.volumeLevel;
 
@@ -374,14 +366,8 @@ async function start() {
         body: JSON.stringify({ volumeLevel: resolvedVolumeLevel })
       });
 
-      return {
-        accepted: true,
-        target: { audioZoneId: resolvedAudioZoneId },
-        volume: { volumeLevel: resolvedVolumeLevel }
-      };
+      return { accepted: true, audioZoneId: command.audioZoneId, volumeLevel: resolvedVolumeLevel };
     }
-
-
 
     return reply.code(400).send({ error: "Unsupported command action" });
   });
